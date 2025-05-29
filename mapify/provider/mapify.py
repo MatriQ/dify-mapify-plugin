@@ -10,5 +10,6 @@ class MapifyProvider(ToolProvider):
             """
             IMPLEMENT YOUR VALIDATION HERE
             """
+            pass
         except Exception as e:
             raise ToolProviderCredentialValidationError(str(e))
