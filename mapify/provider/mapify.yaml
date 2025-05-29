@@ -7,7 +7,7 @@ identity:
     pt_BR: mapify
   description:
     en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
-    zh_Hans: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    zh_Hans: 使用AI将文本、YouTube视频和网页内容转化为精美的思维导图
     pt_BR: Transform text, YouTube videos, and web content into beautiful mind maps using AI
   icon: icon.svg
 tools:
