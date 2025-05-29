@@ -1,0 +1,53 @@
+version: 0.0.1
+type: plugin
+author: Matri Qi
+name: Mapify
+label:
+  en_US: mapify
+  ja_JP: mapify
+  zh_Hans: mapify
+  pt_BR: mapify
+description:
+  en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+  ja_JP: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+  zh_Hans: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+  pt_BR: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+icon: icon.svg
+resource:
+  memory: 268435456
+  permission:
+    tool:
+      enabled: true
+    model:
+      enabled: false
+      llm: false
+      text_embedding: false
+      rerank: false
+      tts: false
+      speech2text: false
+      moderation: false
+    node:
+      enabled: false
+    endpoint:
+      enabled: false
+    app:
+      enabled: false
+    storage:
+      enabled: true
+      size: 1048576
+plugins:
+  tools:
+    - provider/mapify.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: null
+created_at: 2025-05-29T09:06:41.336792+08:00
+privacy: PRIVACY.md
+verified: false

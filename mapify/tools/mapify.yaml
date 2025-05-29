@@ -1,0 +1,30 @@
+identity:
+  name: mapify
+  author: matri
+  label:
+    en_US: mapify
+    zh_Hans: mapify
+    pt_BR: mapify
+description:
+  human:
+    en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    zh_Hans: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    pt_BR: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+  llm: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+parameters:
+  - name: query
+    type: string
+    required: true
+    label:
+      en_US: Query string
+      zh_Hans: 查询语句
+      pt_BR: Query string
+    human_description:
+      en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+      zh_Hans: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+      pt_BR: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    llm_description: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    form: llm
+extra:
+  python:
+    source: tools/mapify.py

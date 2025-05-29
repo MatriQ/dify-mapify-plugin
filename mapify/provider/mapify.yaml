@@ -1,0 +1,17 @@
+identity:
+  author: matri
+  name: mapify
+  label:
+    en_US: mapify
+    zh_Hans: mapify
+    pt_BR: mapify
+  description:
+    en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    zh_Hans: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+    pt_BR: Transform text, YouTube videos, and web content into beautiful mind maps using AI
+  icon: icon.svg
+tools:
+  - tools/mapify.yaml
+extra:
+  python:
+    source: provider/mapify.py
