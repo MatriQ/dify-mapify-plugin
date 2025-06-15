@@ -1,0 +1,147 @@
+name: Plugin Release Workflow
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Update manifest version
+        run: |
+          python - <<EOF
+          import yaml
+          import sys
+          
+          # Get release version from GITHUB_REF
+          release_version = "${{ github.ref_name }}".replace('v', '')
+          
+          # Read manifest.yaml
+          with open('manifest.yaml', 'r') as f:
+              manifest = yaml.safe_load(f)
+          
+          # Update version
+          manifest['version'] = release_version
+          manifest['meta']['version'] = release_version
+          
+          # Write back to manifest.yaml
+          with open('manifest.yaml', 'w') as f:
+              yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
+          EOF
+
+      - name: Commit version update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add manifest.yaml
+          git commit -m "chore: update manifest version to ${{ github.ref_name }}"
+          git push
+
+      - name: Print working directory
+        run: |
+          pwd
+          ls -la
+
+      - name: Download CLI tool
+        run: |
+          # Create bin directory in runner temp
+          mkdir -p $RUNNER_TEMP/bin
+          cd $RUNNER_TEMP/bin
+
+          # Download CLI tool
+          wget https://github.com/langgenius/dify-plugin-daemon/releases/download/0.0.6/dify-plugin-linux-amd64
+          chmod +x dify-plugin-linux-amd64
+
+          # Show download location and file
+          echo "CLI tool location:"
+          pwd
+          ls -la dify-plugin-linux-amd64
+
+      - name: Get basic info from manifest
+        id: get_basic_info
+        run: |
+          PLUGIN_NAME=$(grep "^name:" manifest.yaml | cut -d' ' -f2)
+          echo "Plugin name: $PLUGIN_NAME"
+          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+
+          VERSION=$(grep "^version:" manifest.yaml | cut -d' ' -f2)
+          echo "Plugin version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          AUTHOR=$(grep "^author:" manifest.yaml | cut -d' ' -f2)
+          echo "Plugin author: $AUTHOR"
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+
+      - name: Package Plugin
+        id: package
+        run: |
+          # Use the downloaded CLI tool to package
+          cd $GITHUB_WORKSPACE
+          # Use variables for package name
+          PACKAGE_NAME="${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}.difypkg"
+          # Use CLI from runner temp
+          $RUNNER_TEMP/bin/dify-plugin-linux-amd64 plugin package . -o "$PACKAGE_NAME"
+
+          # Show packaging result
+          echo "Package result:"
+          ls -la "$PACKAGE_NAME"
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+
+          # Show full file path and directory structure
+          echo "\\nFull file path:"
+          pwd
+          echo "\\nDirectory structure:"
+          tree || ls -R
+
+      - name: Checkout target repo
+        uses: actions/checkout@v3
+        with:
+          repository: ${{steps.get_basic_info.outputs.author}}/dify-plugins
+          path: dify-plugins
+          token: ${{ secrets.PLUGIN_ACTION }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Update plugin package
+        run: |
+          # Debug info
+          echo "Debug: Current directory $(pwd)"
+          PACKAGE_NAME="${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}.difypkg"
+          echo "Debug: Package name: $PACKAGE_NAME"
+          ls -la
+
+          # Move the packaged file to the target directory
+          mkdir -p dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}
+          mv "$PACKAGE_NAME" dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}/
+
+          # Enter the target repository directory
+          cd dify-plugins
+
+          # Configure git
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          # Ensure we are on the latest main branch
+          git fetch origin main
+          git checkout main
+          git pull origin main
+
+          # Add and commit changes
+          git add .
+          git status
+          git commit -m "feat: update ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}"
+
+          # Push directly to main
+          git push origin main 
