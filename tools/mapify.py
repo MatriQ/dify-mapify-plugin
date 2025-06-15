@@ -7,41 +7,50 @@ from typing import Any
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
 
-MAPIFY_API_KEY = os.getenv('MAPIFY_API_KEY', '')
-MAPIFY_API_URL = 'https://api.mapify.so/api/v1/mindmaps'
+MAPIFY_API_URL = 'https://mapify.so/api/v1/preview-mind-maps'
 
 YOUTUBE_REGEX = re.compile(r'(https?://)?(www\.)?(youtube\.com|youtu\.be)/')
 WEB_URL_REGEX = re.compile(r'https?://')
 
 class MapifyTool(Tool):
     def _invoke(self, tool_parameters: dict[str, Any]) -> Generator[ToolInvokeMessage, None, None]:
-        query = tool_parameters.get('query', '').strip()
+        prompt_or_url = tool_parameters.get('prompt-url', '').strip()
+        mode = tool_parameters.get('mode', 'prompt')
         language = tool_parameters.get('language', 'en')
-        style = tool_parameters.get('style', 'default')
-        if not query:
+
+        if not prompt_or_url:
             yield self.create_json_message({
-                'error': 'Query is required.'
+                'error': 'Prompt is required.'
             })
             return
 
-        # Determine content type
-        if YOUTUBE_REGEX.search(query):
-            content_type = 'youtube'
-        elif WEB_URL_REGEX.match(query):
-            content_type = 'web'
-        else:
-            content_type = 'text'
+        # Determine content type based on model and prompt
+        if mode == 'youtube':
+            if not YOUTUBE_REGEX.search(prompt_or_url):    
+                yield self.create_json_message({
+                    'error': 'Invalid YouTube URL.'
+                })
+                return
+        elif mode == 'website':
+            if not WEB_URL_REGEX.match(prompt_or_url):
+                yield self.create_json_message({    
+                    'error': 'Invalid website URL.'
+                })
+                return
+        
 
+        # Prepare the request payload
         payload = {
-            'content': query,
+            'prompt': prompt_or_url,
             'language': language,
-            'style': style,
-            'type': content_type
+            'mode': mode
         }
+
         headers = {
-            'Authorization': f'Bearer {MAPIFY_API_KEY}',
+            'Authorization': f'Bearer {self.runtime.credentials["api_key"]}',
             'Content-Type': 'application/json'
         }
+
         try:
             resp = requests.post(MAPIFY_API_URL, json=payload, headers=headers, timeout=60)
             resp.raise_for_status()
@@ -55,7 +64,12 @@ class MapifyTool(Tool):
                 'raw': data
             }
             yield self.create_json_message(result)
-        except Exception as e:
+
+        except requests.exceptions.RequestException as e:
             yield self.create_json_message({
                 'error': f'Failed to generate mind map: {str(e)}'
+            })
+        except Exception as e:
+            yield self.create_json_message({
+                'error': f'Unexpected error: {str(e)}'
             })
