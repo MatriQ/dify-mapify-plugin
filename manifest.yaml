@@ -1,12 +1,12 @@
 version: 0.0.1
 type: plugin
-author: Matri Qi
-name: Mapify
+author: xmindltd
+name: mapify
 label:
-  en_US: mapify
-  ja_JP: mapify
-  zh_Hans: mapify
-  pt_BR: mapify
+  en_US: Mapify
+  ja_JP: Mapify
+  zh_Hans: Mapify
+  pt_BR: Mapify
 description:
   en_US: Transform text, YouTube videos, and web content into beautiful mind maps using AI
   ja_JP: Transform text, YouTube videos, and web content into beautiful mind maps using AI
