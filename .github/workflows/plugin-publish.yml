@@ -1,62 +1,18 @@
-name: Plugin Release Workflow
+# .github/workflows/auto-pr.yml
+name: Auto Create PR on Main Push
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ main ]  # Trigger on push to main
 
 jobs:
-  release:
+  create_pr: # Renamed job for clarity
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
-      - name: Configure Git
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git checkout main
-          git pull origin main
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install PyYAML
-        run: pip install pyyaml
-
-      - name: Update manifest version
-        run: |
-          python - <<EOF
-          import yaml
-          import sys
-          
-          # Get release version from GITHUB_REF
-          release_version = "${{ github.ref_name }}".replace('v', '')
-          
-          # Read manifest.yaml
-          with open('manifest.yaml', 'r') as f:
-              manifest = yaml.safe_load(f)
-          
-          # Update version
-          manifest['version'] = release_version
-          manifest['meta']['version'] = release_version
-          
-          # Write back to manifest.yaml
-          with open('manifest.yaml', 'w') as f:
-              yaml.dump(manifest, f, default_flow_style=False, sort_keys=False)
-          EOF
-
-      - name: Commit version update
-        run: |
-          git add manifest.yaml
-          git commit -m "chore: update manifest version to ${{ github.ref_name }}"
-          git push origin main
-
-      - name: Print working directory
+      - name: Print working directory # Kept for debugging
         run: |
           pwd
           ls -la
@@ -68,7 +24,7 @@ jobs:
           cd $RUNNER_TEMP/bin
 
           # Download CLI tool
-          wget https://github.com/langgenius/dify-plugin-daemon/releases/download/0.0.6/dify-plugin-linux-amd64
+          wget https://github.com/langgenius/dify-plugin-daemon/releases/download/0.1.2/dify-plugin-linux-amd64
           chmod +x dify-plugin-linux-amd64
 
           # Show download location and file
@@ -76,7 +32,7 @@ jobs:
           pwd
           ls -la dify-plugin-linux-amd64
 
-      - name: Get basic info from manifest
+      - name: Get basic info from manifest # Changed step name and content
         id: get_basic_info
         run: |
           PLUGIN_NAME=$(grep "^name:" manifest.yaml | cut -d' ' -f2)
@@ -87,6 +43,7 @@ jobs:
           echo "Plugin version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+          # If the author's name is not your github username, you can change the author here
           AUTHOR=$(grep "^author:" manifest.yaml | cut -d' ' -f2)
           echo "Plugin author: $AUTHOR"
           echo "author=$AUTHOR" >> $GITHUB_OUTPUT
@@ -106,7 +63,7 @@ jobs:
           ls -la "$PACKAGE_NAME"
           echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
 
-          # Show full file path and directory structure
+          # Show full file path and directory structure (kept for debugging)
           echo "\\nFull file path:"
           pwd
           echo "\\nDirectory structure:"
@@ -115,21 +72,23 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v3
         with:
+          # Use author variable for repository
           repository: ${{steps.get_basic_info.outputs.author}}/dify-plugins
           path: dify-plugins
           token: ${{ secrets.PLUGIN_ACTION }}
-          fetch-depth: 1
-          persist-credentials: true
+          fetch-depth: 1 # Fetch only the last commit to speed up checkout
+          persist-credentials: true # Persist credentials for subsequent git operations
 
-      - name: Update plugin package
+      - name: Prepare and create PR
         run: |
-          # Debug info
+          # Debug info (kept)
           echo "Debug: Current directory $(pwd)"
+          # Use variable for package name
           PACKAGE_NAME="${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}.difypkg"
           echo "Debug: Package name: $PACKAGE_NAME"
           ls -la
 
-          # Move the packaged file to the target directory
+          # Move the packaged file to the target directory using variables
           mkdir -p dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}
           mv "$PACKAGE_NAME" dify-plugins/${{ steps.get_basic_info.outputs.author }}/${{ steps.get_basic_info.outputs.plugin_name }}/
 
@@ -145,10 +104,40 @@ jobs:
           git checkout main
           git pull origin main
 
-          # Add and commit changes
-          git add .
-          git status
-          git commit -m "feat: update ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}"
+          # Create and switch to a new branch using variables and new naming convention
+          BRANCH_NAME="bump-${{ steps.get_basic_info.outputs.plugin_name }}-plugin-${{ steps.get_basic_info.outputs.version }}"
+          git checkout -b "$BRANCH_NAME"
 
-          # Push directly to main
-          git push origin main 
+          # Add and commit changes (using git add .)
+          git add .
+          git status # for debugging
+          # Use variables in commit message
+          git commit -m "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}"
+
+          # Push to remote (use force just in case the branch existed before from a failed run)
+          git push -u origin "$BRANCH_NAME" --force
+
+          # Confirm branch has been pushed and wait for sync (GitHub API might need a moment)
+          git branch -a
+          echo "Waiting for branch to sync..."
+          sleep 10  # Wait 10 seconds for branch sync
+
+      - name: Create PR via GitHub API
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_ACTION }} # Use the provided token for authentication
+        run: |
+          gh pr create \
+            --repo langgenius/dify-plugins \
+            --head "${{ steps.get_basic_info.outputs.author }}:${{ steps.get_basic_info.outputs.plugin_name }}-${{ steps.get_basic_info.outputs.version }}" \
+            --base main \
+            --title "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin to version ${{ steps.get_basic_info.outputs.version }}" \
+            --body "bump ${{ steps.get_basic_info.outputs.plugin_name }} plugin package to version ${{ steps.get_basic_info.outputs.version }}
+
+            Changes:
+            - Updated plugin package file" || echo "PR already exists or creation skipped." # Handle cases where PR already exists
+
+      - name: Print environment info # Kept for debugging
+        run: |
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "Current directory contents:"
+          ls -R
